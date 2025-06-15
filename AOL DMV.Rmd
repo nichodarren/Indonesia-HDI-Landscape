@@ -1,0 +1,578 @@
+---
+title: "Indonesia's HDI Landscape: Exploring Regional Disparities and it’s Influencing Factors"
+author: "Group 5"
+date: "2025-06-13"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+# Background
+
+A country's development is not only measured from economic growth, but also from the quality of life of it's residents. Human Development Index (HDI) is one of the key indicator that measure overall public welfare. Developed by United Nations in 1990, HDI designed to highlight that humans and their capabilities should be the main criteria in evaluate a country's development besides just from economic growth. HDI consists of 3 basic dimension of human development including standard of living, health and longevity, and education. 
+
+Since it was introduced, HDI has become an important tool for government and international organization to evaluating development progress and identify which area that need more attention. In Indonesia, although HDI shows consistent increasing trend from year to year in aggregate, this progress has not occurred evenly across all regions. Data shows that there is in fact a significant regional disparities in achieving HDI between regions. As example in 2023, "Papua Pegunungan" Province recorded as having lowest HDI in Indonesia at approximately 52.45. This highlights a striking gap compared to the provinces in the western part of the country which usually have much more higher HDI.
+
+These disparities not only reflecting the differences in access to basic services like education and healthcare, but also indicating the presences of complex factors like social, economy and geographic which contributes to those disparities. Understanding the root cause of these inequality problems becoming crucial and important for formulating more targeted and inclusive development policies. Therefore, this research will study deeper into Indonesia's HDI landscape with focus in identifying the main contributing factors and regional disparities pattern.
+
+# Objectives
+
+Based on the background that has been described, this research has some main objectives:
+
+Identifying key variables that influences HDI in Indonesia: Analyze HDI data to determine which factors that have the most significant influence on HDI level across regions in Indonesia.
+
+Analyzing regional HDI disparities in Indonesia: Explore patterns and disparities in HDI level across various regions, and identify areas with lowest HDI level that need more attention in Indonesia
+
+Providing policy recommendation for reducing HDI disparities: Formulating more targeted and inclusive development policies for government and any other stakeholders to reduce human development gaps between regions in Indonesia.
+
+# Data Collection
+
+In this research, the data used for analyzing HDI and its factors in Indonesia collected from 2 main source:
+
+Poverty Levels Classification Dataset in Indonesia
+This dataset was obtained and downloaded from Kaggle platform with the title of "Klasifikasi Tingkat Kemiskinan di Indonesia.csv". Although the dataset title refers to poverty classification, this dataset is also highly relevant for HDI analysis as it contains per city-level data including variables that have strong correlation with HDI such as per capita expenditure, life expectancy, average years of schooling, etc. This dataset will serve as main base for statistical analysis to identifying main factors that influence HDI and seeing trends or pattern in HDI disparities between regions in Indonesia. (Source: https://www.kaggle.com/datasets/ermila/klasifikasi-tingkat-kemiskinan-di-indonesia)
+
+Geographic Spatial Data of Indonesia
+This spatial data was obtained and downloaded from the official website of Global Administrative Areas. It is provided in the shapefile format that represent the administrative boundaries of Indonesia's provinces. This data is important for visualization especially in creating thematic maps that illustrate the HDI disparities between provinces in Indonesia. By using this spatial data, we can map the results of the analysis geographically so that regional disparities can be clearly visualized and better understood. (Source: https://gadm.org/download_country.html)
+
+By combining these two types of data, tabular data containing HDI predictor variables and spatial data of Indonesia, this research aims to provide a comprehensive and insightful analysis of the HDI in Indonesia both in terms of its key factors and the regional disparities across the country.
+
+```{r,include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(sf)
+library(knitr)
+library(skimr)
+library(tidyr)
+library(e1071)
+library(ggcorrplot)
+
+setwd('C:/Users/LENOVO/OneDrive/Dokumen/KULYEAHHH!!!!!!/II/DMV/AOL') # csv file address
+data <- read.csv2('Klasifikasi Tingkat Kemiskinan di Indonesia.csv')
+setwd('C:/Users/LENOVO/OneDrive/Dokumen/KULYEAHHH!!!!!!/II/DMV/AOL/indo_map') # shp file address
+indo_map <- st_read("gadm41_IDN_1.shp") # province level
+```
+
+# Data Exploration and Preparation
+
+Before building any analytical model, it is essential to understand the dataset thoroughly. This section focuses on exploring the structure and contents of the data, identifying any inconsistencies or missing values, and understanding the distribution of key variables. Exploratory Data Analysis (EDA) is performed to uncover patterns, detect anomalies, and gain initial insights. The section also includes basic preprocessing steps needed to ensure the data is ready for further analysis.
+
+## Data Content and Structure Inspection
+
+### Dimensions
+
+```{r}
+cat("The dataset has",dim(data)[1],"rows and",dim(data)[2],"columns.\n")
+```
+Each row represents one data observation for each city/regency covered in the dataset, meanwhile each column represents a different variable in the poverty classification. Understanding these dimensions is the initial foundation for deeper data exploration.
+
+### Column Names
+
+The next step is to identify the names of the columns.
+```{r}
+cat(paste(colnames(data),collapse = ", "))
+```
+
+The output above displays 13 column names in the dataset. At first glance, it appears that these column names tend to be long and less intuitive, potentially complicating the analysis process. Therefore, to improve readability, code writing efficiency, and ease of interpretation, it is a wise choice to rename or replace the column names to be shorter, more consistent, and more descriptive such as:
+
+```{r}
+colnames(data) <- c('Provinsi', 'Kab/Kota', 'Persentase Penduduk Miskin','Lama Sekolah Penduduk', 
+                    'Pengeluaran per Kapita','IPM', 'Harapan Hidup', 
+                    'Akses Sanitasi', 'Akses Air Minum', 
+                    'Pengangguran Terbuka', 'Partisipasi Angkatan Kerja', 
+                    'PDRB', 'Kategori Kemiskinan')
+cat(paste(colnames(data),collapse = ", "))
+```
+
+This way, column names will be much more efficient and easier to understand, making further exploration and analysis easier.
+
+### Dataset Preview
+
+The next important step is to preview the dataset. This preview will show the first few (head) and last few (tail) rows of the dataset, allowing us to examine the data values, and identify potential problems such as missing values or invalid entries.
+
+Dataset Preview
+
+```{r}
+# untuk visualisasi knit to HTML untuk mendapatkan table dataset preview karena kalo langsung jadinya jelek di word
+
+head <- head(data,5)
+tail <- tail(data,5)
+sep <- data.frame(matrix(rep("...", ncol(data)),nrow=1))
+colnames(sep) <- colnames(data)
+combined <- rbind(head,sep,tail)
+kable(combined)
+```
+
+Notes: The preview dataset visualization is obtained from knitting the code in HTML.
+
+Based on the preview conducted by looking at the first and last 5 rows of the dataset, it was found that the head of the dataset looks safe and clean with completely filled data, while the tail of the dataset shows a significant problem where all the last rows (tail) contain missing values. This phenomenon most likely indicates that there are a number of rows at the end of the dataset that do not have information. Given that the total rows of this dataset is 999 and the number of cities/regencies in Indonesia does not reach that number, it is very likely that there is a certain range of rows that contain all missing values. To confirm and address this issue, a missing value check will be performed to identify the extent and location of incomplete entries in the dataset.
+
+Number of Missing Values per Column
+
+```{r}
+kable(data.frame(Column=colnames(data),`Missing Values`=colSums(is.na(data))),row.names=FALSE)
+```
+
+This confirms that the majority of the columns in the dataset have the same number of missing values, which is 485. This finding supports the previous observation from the dataset preview where the tail is completely empty (some are empty strings and NA). This indicates that the last 485 rows of the dataset are likely to be completely empty or have no valid data. Therefore, we should check the dataset preview again from row 515 (999 - 485 + 1) to the end.
+
+Dataset Preview from Row 515
+
+```{r}
+# untuk visualisasi knit to HTML untuk mendapatkan table dataset preview karena kalo langsung jadinya jelek di word
+
+data_above515 <- data[515:nrow(data),]
+head <- head(data_above515,5)
+tail <- tail(data_above515,5)
+sep <- data.frame(matrix(rep("...", ncol(data_above515)),nrow=1))
+colnames(sep) <- colnames(data_above515)
+rownames(sep) <- 520
+combined <- rbind(head,sep,tail)
+kable(combined)
+```
+
+Notes: The preview dataset visualization is obtained from knitting the code in HTML.
+
+Upon further inspection of the dataset from row 515 to the end (row 999), it is confirmed that all rows in this range do indeed contain missing values in most of the columns. This strengthens the suspicion that the last 485 rows (999 - 514 = 485) of the dataset do not contain valid and reliable information for analysis. To confirm this in more detail and see the unique values in the columns.
+
+Number of Unique Values in Dataset Starting from Row 515
+
+```{r}
+kable(data.frame(Column=colnames(data_above515),`Unique Values`=sapply(data_above515,function(x)length(unique(x)))),
+      row.names = FALSE)
+```
+
+Based on this, it is definitively confirmed that each column in this row range has only one unique value. This finding proves that the last 485 rows of the dataset all contain the same value (empty string and NA), consistent with the previous preview results. This clearly indicates that these rows are not part of the valid or relevant data for analysis. Thus, these empty rows will be removed as they do not contain any information.
+
+Dataset Preview after Handling Missing Values
+
+```{r}
+data <- na.omit(data)
+cat("The dataset has",dim(data)[1],"rows after handling missing values.\n")
+head <- head(data,5)
+tail <- tail(data,5)
+sep <- data.frame(matrix(rep("...", ncol(data)),nrow=1))
+colnames(sep) <- colnames(data)
+combined <- rbind(head,sep,tail)
+kable(combined)
+```
+
+Notes: The preview dataset visualization is obtained from knitting the code in HTML.
+
+
+Number of Missing Values per Column After Handling Missing Values
+
+```{r}
+kable(data.frame(Column=colnames(data),`Missing Values`=colSums(is.na(data))),row.names=FALSE)
+```
+
+After a careful data cleaning step including the removal of identified blank rows, the number of observations in the dataset is now reduced to 514 rows. The dataset preview at both the head and tail shows that there are no more missing value issues. All rows are now filled with complete and consistent data. Further confirmation by counting the number of missing values (NA) across the entire dataset also confirms that there are no more missing values detected in any columns. This indicates that the missing values issue has been fully addressed and the dataset is now clean and ready for the next stage of analysis.
+
+
+The next problem is the "Poverty Category" column is currently still in numeric type. Most likely this is intended as a boolean value that represents a condition of 0 for not poor and 1 for poor. If so, converting to a factor type with clear labels would facilitate further interpretation and analysis. Last but not least, in the numeric columns that have decimal values (float), two versions of the decimal separator are identified, namely using a comma (in columns "Poverty Rate" and "Average Years of Schooling") and a dot (from column "HDI" to "Labor Force Participation"). This indicates that there is a possibility of inconsistency in the data type in the dataset which can cause numeric columns to be read as character or object data types by R, which can hinder the statistical analysis process. These issues will be checked further in the next section.
+
+### Data Type of Each Column
+
+The next step is to check the data type of each column. This is crucial to ensure that each variable is interpreted correctly by R, especially for columns discussed in the previous section.
+
+Data Types per Column
+
+```{r}
+kable(data.frame(Column=colnames(data),Type=sapply(data,class)),row.names=FALSE)
+```
+
+From the table given, it turns out that "Poverty Category" column type is integer.
+
+```{r}
+cat("These are the unique values found in the 'Poverty Category' column:\n")
+for (val in unique(data$`Kategori Kemiskinan`)) {
+  cat("-", val, "\n")
+}
+```
+
+It was confirmed that the "Poverty Category" column is essentially a boolean variable as its unique values are limited to 0 and 1, indicating that it should represent logical values such as true and false. Given this, it is advisable to convert this column into a factor data type. This is because treating it as a categorical variable makes it more appropriate in analysis and modeling and also improves interpretability by making the analysis results clearer and more meaningful.
+
+```{r}
+data <- mutate(data,`Kategori Kemiskinan`=factor(data$`Kategori Kemiskinan`,levels=c(0,1),labels=c('Tidak','Ya')))
+cat("The 'Poverty Category' column has been successfully converted to a factor with the following levels:\n")
+for (val in levels(data$`Kategori Kemiskinan`)) {
+  cat("- ", val, "\n")
+}
+```
+
+Next, it turns out that there is indeed a data type inconsistency problem in the numeric columns. Specifically, the columns "Poverty Rate" and "Average Years of Schooling" which should be numeric, are identified as character types (chr). This happens because the decimal values in these columns use commas as decimal separators instead of dots which is the default standard for decimal numbers in R. This issue requires careful data type conversion.
+
+Data Types per Column after Data Conversion
+
+```{r}
+data <- mutate(data,across(3:4,~as.numeric(gsub(',','.',.))))
+kable(data.frame(Column=colnames(data),Type=sapply(data,class)),row.names=FALSE)
+```
+
+The results of this verification show that all column data types are now correct and appropriate, including the "Poverty Category", "Poverty Rate" and "Average Years of Schooling" columns which previously did not have appropriate data types.
+
+## Descriptive Statistics
+
+This section presents descriptive statistical analysis to provide a comprehensive overview of the characteristics of the dataset. This analysis is essential to understand the distribution, variation, and initial patterns of each variable before moving on to more deep analysis. The coverage of descriptive statistics includes a general summary of the dataset, frequencies of data types per column, and detailed descriptive statistics for each data type, providing crucial initial insights into the quality and structure of the data.
+
+Dataset Summary
+
+```{r}
+summary_table <- data.frame(Attribute=c("Name","Number of rows","Number of columns"),
+                            Value=c("data",nrow(data),ncol(data)))
+kable(summary_table)
+```
+
+Column Data Type Frequency
+
+```{r}
+skim_result <- skim(data)
+col_types <- as.data.frame(table(skim_result$skim_type))
+colnames(col_types) <- c("Column Type","Frequency")
+kable(col_types)
+```
+
+### Numerical Descriptive Statistics
+
+```{r}
+numeric_summary <- function(data) {
+  data %>%
+    select(where(is.numeric)) %>%
+    summarise(across(everything(), list(
+      count = ~sum(!is.na(.)),
+      mean = ~round(mean(., na.rm = TRUE), 3),
+      median = ~round(median(., na.rm = TRUE), 3),
+      min = ~round(min(., na.rm = TRUE), 3),
+      max = ~round(max(., na.rm = TRUE), 3),
+      sd = ~round(sd(., na.rm = TRUE), 3),
+      skewness = ~round(e1071::skewness(., na.rm = TRUE), 3),
+      kurtosis = ~round(e1071::kurtosis(., na.rm = TRUE), 3),
+      na = ~sum(is.na(.))
+    ), .names = "{.col}_{.fn}")) %>%
+    pivot_longer(everything(),
+                 names_to = c("Variable", "Statistic"),
+                 names_sep = "_",
+                 values_to = "Value") %>%
+    pivot_wider(names_from = Statistic, values_from = Value)
+}
+summary_table <- numeric_summary(data)
+kable(summary_table)
+```
+
+Notes: The summary table visualization is obtained from knitting the code in HTML.
+
+For the purposes of a more stable analysis, the "GRDP" and "Per Capita Expenditure" variables are treated specifically because both reflect economic indicators in currency units and tend to have a wide distribution. In the context of cities/regencies in Indonesia, the variation in economic values is very sharp due to the disparities between regions, especially between economic centers and underdeveloped areas. 
+
+"GRDP" undergoes a logarithmic transformation to overcome extreme skewness (> 5) that can interfere with statistical interpretation and modeling. Meanwhile, in "Per Capita Expenditure", no transformation is carried out, but capping is applied to outliers using the three-sigma rule. This means that values that are outside three standard deviations from the average are limited to maximum and minimum values that are still within these limits. 
+
+This step maintains the original scale of the data so that it can still be interpreted economically, while reducing the influence of outliers that can distort the model. Capping is preferred over deletion because it retains all observations and reduces the potential for bias due to data omissions.
+
+Numerical Descriptive Statistics after Preprocessing
+
+```{r}
+data <- mutate(data,
+               PDRB = log(PDRB+1),
+               `Pengeluaran per Kapita` = {
+                 mean_val <- mean(`Pengeluaran per Kapita`)
+                 sd_val <- sd(`Pengeluaran per Kapita`)
+                 lower <- mean_val-3*sd_val
+                 upper <- mean_val+3*sd_val
+                 ifelse(`Pengeluaran per Kapita`<lower,lower,
+                        ifelse(`Pengeluaran per Kapita` > upper, upper,`Pengeluaran per Kapita`))},
+               )
+summary_table <- numeric_summary(data)
+kable(summary_table)
+```
+
+Notes: The summary table visualization is obtained from knitting the code in HTML.
+
+Overall, these descriptive statistics confirm that the preprocessing steps on the "GDRP" and "Per Capita Expenditure" column have succeeded in creating a more stable and representative dataset. The transformation of "GRDP" and handling of outliers in "Per Capita Expenditure" have reduced data distortion and prepared these variables for more deep analysis.
+
+### Categorical Descriptive Statistics
+
+Character Descriptive Statistics
+
+```{r}
+data_chr <- data %>% select_if(~is.character(.))
+skim_result <- skim(data_chr)
+chr_summary <- skim_result %>% filter(skim_type == "character")
+kable(chr_summary)
+```
+
+Factor Descriptive Statistics
+
+```{r}
+data_factor <- data %>% select_if(~is.factor(.))
+skim_result <- skim(data_factor)
+factor_summary <- skim_result %>% filter(skim_type == "factor")
+kable(factor_summary)
+```
+
+## Visualize Correlation
+
+The results of the descriptive statistical analysis have provided a deep understanding of the characteristics and distribution of each variable in the dataset. This information is very valuable as a foundation, but to truly understand how these variables are related to each other and which ones have the most significant influence on HDI, the next essential step is correlation visualization. Through this visualization, we can identify the strength and direction of the relationship between variables intuitively, which will be key in answering the research objectives regarding the factors that influence HDI in Indonesia.
+
+### Numerical Variables
+
+```{r}
+data_numeric <- data %>% select(where(is.numeric))
+cor_matrix <- cor(data_numeric,use="pairwise.complete.obs")
+ggcorrplot(cor_matrix,lab=TRUE,lab_size=3,type="lower",outline.col="white")
+```
+
+Based on the heatmap visualization of the correlation of numerical variables, we can identify 3 main factors that show a strong positive correlation with the HDI, namely: Per Capita Expenditure (0.88), Average Years of Schooling (0.87), and Life Expectancy (0.71). This finding is very consistent and strongly supported by the definition and framework of the HDI indicator itself. As previously explained, the HDI is built on three basic dimensions of human development.
+
+This very strong correlation not only proves the relevance of the three indicators as the main pillars in calculating the HDI, but also empirically shows that efforts to improve the economic, education, and health sector will have a significant and direct impact on increasing the HDI in various regions. This finding further strengthens the urgency of policies that focus on these three aspects to encourage holistic and equitable human development.
+
+Although Poverty Rate also shows a strong correlation with HDI at 0.71, we chose not to include it as one of the three main factors. The reason is because conceptually, poverty rate is often considered as a consequence or reflection of low achievement in the HDI dimensions. In other words, high poverty rate is most likely caused by limited access to education, poor health services, and low income, all of which are already captured in the three core dimensions of HDI.
+
+### Categorical Variable
+
+```{r}
+ggplot(data, aes(x=`Kategori Kemiskinan`,y=IPM,fill=`Kategori Kemiskinan`)) +
+  geom_boxplot() +
+  scale_fill_manual(values=c("Ya"="#f28e8c","Tidak"="#76c7c0")) +
+  scale_x_discrete(labels=c("Ya"="Yes","Tidak"="No")) +
+  labs(title="HDI Distribution by Poverty Category",x="Poverty Category",y="Human Development Index (HDI)") +
+  theme_minimal() +
+  theme(legend.position="none")
+```
+
+From the graph it can be seen that the variables "Poverty Category" and "HDI" variable are actually very closely related. In fact, poverty is one of the key components that intrinsically influences and is strongly correlated with the indicators that form the HDI.
+
+However, in the context of this study which focuses on identifying the true independent variables that influence the HDI, variables such as Poverty Category will be set aside as these variables tend to be non-independent and are highly intertwined with the HDI components themselves, potentially leading to multicollinearity problems and not providing new predictive insights beyond what is already covered by the other HDI components.
+
+## Final Preprocessing
+
+After identifying key variables that are strongly correlated with HDI and ensuring data quality, the final preprocessing step can now begin.
+
+### Feature Engineering
+
+```{r}
+data <- mutate(data,
+               IPM_Kategori=factor(case_when(IPM<60~"Low",IPM>=60&IPM<70~"Medium",IPM>=70~"High",),
+                                   levels=c("Low","Medium","High"),ordered=TRUE),
+               jenjang = cut(`Lama Sekolah Penduduk`,breaks=c(-Inf,6,9,12,Inf),
+                             labels=c("SD","SMP","SMA","PT"),right=TRUE))
+```
+
+In this section, there are 2 new variables created. 
+
+First, the "HDI Category" variable is created from the numeric value of the HDI. This variable groups regions into three categories of human development based on predetermined thresholds: "Low" for HDI < 60, "Medium" for HDI >= 60 and < 70, and "High" for HDI >= 70. This categorization aims to simplify the interpretation of human development levels in various regions, allowing for more intuitive identification of groups of areas that require special attention and facilitating policy reporting. 
+
+Second, the "Education Level" variable is created from the Average Years of Schooling column that grouped into more familiar and contextual education levels: "ES" stands for Elementary School (up to 6 years), "JHS" stands for Junior High School (above 6 to 9 years), "SHS" stands for Senior High School (above 9 to 12 years), and "Uni" stands for University (above 12 years). The creation of this "Education Level" variable allows for the analysis of HDI patterns based on education levels becoming more easily understood in general and providing more applicable insights for stakeholders.
+
+### Matching Provinces Value with Spatial Dataset
+
+```{r}
+data <- mutate(data,
+               Provinsi = recode(Provinsi,
+                                 "ACEH" = "Aceh","SUMATERA UTARA" = "Sumatera Utara",
+                                 "SUMATERA BARAT" = "Sumatera Barat", "RIAU" = "Riau","JAMBI" = "Jambi",
+                                 "SUMATERA SELATAN" = "Sumatera Selatan","BENGKULU" = "Bengkulu",
+                                 "LAMPUNG" = "Lampung","KEP. BANGKA BELITUNG" = "Bangka Belitung",
+                                 "KEPULAUAN RIAU" = "Kepulauan Riau", "DKI JAKARTA" = "Jakarta Raya",
+                                 "JAWA BARAT" = "Jawa Barat","JAWA TENGAH" = "Jawa Tengah",
+                                 "D I YOGYAKARTA" = "Yogyakarta","JAWA TIMUR" = "Jawa Timur","BANTEN" = "Banten", 
+                                 "BALI" = "Bali", "NUSA TENGGARA BARAT" = "Nusa Tenggara Barat", 
+                                 "NUSA TENGGARA TIMUR" = "Nusa Tenggara Timur", 
+                                 "KALIMANTAN BARAT" = "Kalimantan Barat","KALIMANTAN TENGAH" = "Kalimantan Tengah",
+                                 "KALIMANTAN SELATAN" = "Kalimantan Selatan","KALIMANTAN TIMUR" = "Kalimantan Timur",
+                                 "KALIMANTAN UTARA" = "Kalimantan Utara","SULAWESI UTARA" = "Sulawesi Utara",
+                                 "SULAWESI TENGAH" = "Sulawesi Tengah","SULAWESI SELATAN" = "Sulawesi Selatan",
+                                 "SULAWESI TENGGARA" = "Sulawesi Tenggara","GORONTALO" = "Gorontalo",
+                                 "SULAWESI BARAT" = "Sulawesi Barat", "MALUKU" = "Maluku",
+                                 "MALUKU UTARA" = "Maluku Utara","PAPUA BARAT" = "Papua Barat","PAPUA" = "Papua"))
+```
+
+The next crucial step is to combine our tabular data with a spatial dataset (geographic map). The main goal is to visualize the HDI and related indicators geographically, so that regional patterns and disparities can be clearly seen in map form. If there is a mismatch in the naming of the provinces, the data merging process will not be successful, and the map cannot be created correctly.
+
+### Duplicate Data
+
+```{r}
+paste("There are", sum(duplicated(data)), "duplicate rows in the dataset.")
+```
+
+### Categorical Descriptive Statistics after Final Preprocessing
+
+Since feature engineering introduced 2 new variables of factor type, it's a good idea to revisit the descriptive statistics for categorical (factor) variables.
+
+```{r}
+data_factor <- data %>% select_if(~is.factor(.))
+skim_result <- skim(data_factor)
+factor_summary <- skim_result %>% filter(skim_type == "factor")
+kable(factor_summary)
+```
+
+# Result Analysis and Visualization
+
+## HDI Overview in Indonesia
+
+After categorizing the HDI into 3 categories in the previous section, the following visualization shows the proportion of each category in the dataset. This provides an overview of the distribution of human development levels across the observed regions.
+
+```{r, warning=FALSE}
+data_pie <- data %>% count(IPM_Kategori) %>% mutate(percent=round(100*n/sum(n),1),label=paste0(IPM_Kategori,"\n",percent,"%"))
+
+ggplot(data_pie,aes(x=2,y=n,fill=IPM_Kategori)) + # x konstan (2) dan y sesuai value n dalam table
+  geom_bar(stat="identity",color="white",size=2) + # garis tepi putih antar bar dan direnggangkan
+  coord_polar("y",start=0) + # jadiin lingkaran dan mualai dari 0 derajat
+  xlim(0.5, 2.5) +  # batas sumbu x untuk fokusin dan nengahin tampilan donut
+  scale_fill_manual(values=c("Low"="#f28e8c","Medium"="#f6d55c","High"="#76c7c0")) +
+  geom_text(aes(label=label),position=position_stack(vjust=0.5),size=6,color="black") +
+  theme_void() + # kosongin elemen selain data
+  labs(title="HDI Category Distribution") +
+  theme(plot.title=element_text(size=18,face="bold",hjust=0.5),legend.position="none") 
+  # atur judul dan sembunyikan legend
+```
+
+Almost half of the observed areas (47.1%) are included in the "High" HDI category. This indicates that a large number of cities/regencies in Indonesia have achieved a good level of human development, exceeding 70.
+
+The largest proportion, namely 48.6% of the areas, are in the "Medium" HDI category (between 60 and 70). This shows that the majority of areas in Indonesia are still in the medium human development stage, which means there is still significant room for improvement towards the high category.
+
+Only a small portion, namely 4.3% of the region, is in the "Low" HDI category (below 60). Although the percentage is small, the existence of this category highlights the existence of several regions that are still very far behind in human development and require urgent attention and policy intervention. 
+
+Overall, this visualization confirms the disparity in HDI achievements in Indonesia. The majority of regions are in the "Medium" and "High" categories, which are positive indications of development progress. However, the existence of a small percentage in the "Low" category is an important alarm to focus on the regions that need the most development encouragement so that they do not fall further behind. This data will be an important basis for further analysis of the factors that encourage or hinder regions from being in a particular category.
+
+## Relationship Between HDI and Per Capita Expenditure 
+
+One of the main indicators in the decent living standard dimension of the HDI is Per Capita Expenditure. The scatter plot visualization below illustrates the relationship between these two variables, with data points colored based on the HDI categories.
+
+```{r,warning=FALSE}
+corr <- cor(data$`Pengeluaran per Kapita`,data$IPM,use="complete.obs")
+
+ggplot(data,aes(x=`Pengeluaran per Kapita`,y=IPM,color=IPM_Kategori)) +
+  geom_point(size=3,alpha=0.7) + # atur data point
+  scale_color_manual(values=c("Low"="#f28e8c","Medium"="#f6d55c","High"="#76c7c0")) +
+  labs(title="HDI vs Per Capita Expenditure",subtitle=paste0("Pearson correlation: ",round(corr,2)),
+    x="Per Capita Expenditure (Rp)",y="Human Development Index (HDI)",color="HDI Category") +
+  theme_minimal() + # ini duluan agar posisi legend tidak tertimpa bawaan default theme_minimal()
+  theme(legend.position=c(0.85,0.25)) # atur posisi legend
+```
+
+From the scatter plot above, it is clear that there is a very strong positive correlation between Per Capita Expenditure and the HDI, with a Pearson correlation coefficient of 0.88. Positive linear pattern is showed by most of the data points forming an upward trend from bottom left to top right. This means that along with the increase in Per Capita Expenditure, the HDI value also tends to increase significantly. The HDI grouping also suggests the existence of an indirect threshold such that regions with higher Per Capita Expenditure have a greater chance of achieving a "Medium" or "High" HDI.
+
+This very strong correlation underlines the importance of Per Capita Expenditure as a vital indicator of human development. Increasing people’s purchasing power and economic well-being directly contribute to improving the quality of life reflected in the HDI. Therefore, policies aimed at increasing people’s income and expenditure, such as job creation, increasing the minimum wage, or social assistance programs, have great potential to drive HDI improvement.
+
+This visualization visually reinforces the understanding that improving the standard of living, as measured by Per Capita Expenditure, is one of the key drivers in achieving better human development in Indonesia.
+
+## Education's Influence on HDI
+
+Before visualizing the relationship between education level and HDI, data aggregation is needed to obtain summary statistics per education level category. This step aims to calculate the average HDI and the number of observations for each level, as well as prepare the data for a unique visualization.
+
+```{r}
+data_jenjang <- data %>% group_by(jenjang) %>% summarise(count=n(),IPM=mean(IPM)) %>% mutate(
+    IPM_Kategori=factor(case_when(IPM<60~"Low",IPM>=60 & IPM<70~"Medium",IPM>=70~"High"),
+      levels=c("Low","Medium","High"),ordered=TRUE),
+    jenjang = recode(jenjang,"SD" = "ES","SMP" = "JHS","SMA" = "SHS","PT" = "Uni"))
+kable(data_jenjang)
+```
+
+The result of this section is a summary table showing how many cities/regencies are at a particular education level, what their average HDI is, and their average HDI category. Next, further calculations are necessary to adjust for the differences in bar thickness, ensuring that the visualization of frequency distribution across categories is accurate and easy to interpret.
+
+```{r}
+data_plot <- data_jenjang %>%
+  mutate(norm_count=(count-min(count))/(max(count)-min(count)),bar_thickness=0.25+norm_count*0.55,
+    y_mid=as.numeric(factor(jenjang)),ymin=y_mid-bar_thickness/2,ymax=y_mid+bar_thickness/2)
+kable(data_plot)
+```
+
+The visualization below presents the relationship between the average education level of the population and the HDI value in various regions. This plot uniquely uses the length of the bar to represent the average HDI and the thickness of the bar to indicate the number of observations of cities/regencies in each education level, and the color of the bar corresponds to the average HDI category of that level.
+
+```{r}
+ggplot(data_plot) +
+  geom_rect(aes(xmin=0,xmax=IPM,ymin=ymin,ymax=ymax,fill=IPM_Kategori)) + # membentuk bentuk bar yang bisa dikustomisasi
+  geom_text(aes(x=IPM-2,y=y_mid,label=paste0("HDI: ",round(IPM,1),"\nFreq = ",count)),
+            hjust=1,size=3.5,color="black") + # menambahkan label teks detail HDI dan Freq dalam bar
+  scale_fill_manual(values=c("Low"="#f28e8c","Medium"="#f6d55c","High"="#76c7c0")) +
+  scale_y_continuous(breaks=data_plot$y_mid,labels=data_plot$jenjang) + # atur skala dan label sumbu Y
+  labs(x="Human Development Index (HDI)",y="Education Level",fill="HDI Category",
+       title="Education Level Distribution by HDI") +
+  theme_minimal()
+```
+
+There is a very strong positive relationship between education level and HDI. The higher the average education level of the population in a region, the higher the average HDI.
+
+The University level shows the highest average HDI at 83.7, placing it in the "High" category. Although it has the fewest observations (only 3), its HDI value is notably high. Regions where the average years of schooling correspond to Senior High School have an average HDI of 75.8, also in the "High" category, with a total of 154 observations. For areas with schooling levels equivalent to Junior High School, the average HDI drops to 68.3, included in "Medium" category. This group has the highest frequency, with 334 observations, suggesting that most areas in the dataset are still at the Junior High School level. At the other end of the spectrum, areas with an average schooling level equivalent to Elementary School have the lowest HDI at 53.1, classified as "Low", with 23 observations.
+
+The Junior High School bar appears the thickest, corresponding to its large number of observations (334), highlighting that this level dominates the dataset. The bar for Senior High School is also relatively thick with 154 entries, while both Elementary School (23) and University (3) have thinner bars due to their smaller number of observations, representing the two extremes in education levels.
+
+This visualization strongly supports the importance of education as a key pillar of human development. Increasing access and quality of education to higher levels has been shown to be directly correlated with increasing HDI. This finding underscores the need for continued investment in the education sector to drive improvements in the quality of human resources and, in turn, regional development.
+
+Overall, this plot provides an intuitive and comprehensive illustration of how the level of education achieved by the population directly contributes to the progress of the HDI while also showing where the majority of Indonesia's regions are concentrated on the education spectrum.
+
+## Longevity Differences Across HDI Groups
+
+The following overlay histogram visualizes the distribution of Life Expectancy, with colors representing HDI categories. This plot will show how life expectancy varies across regions with different HDI categories.
+
+```{r}
+ggplot(data,aes(x=`Harapan Hidup`,fill=IPM_Kategori)) +
+  geom_histogram(position="identity",alpha=0.7,bins=20,color="white") + 
+  # supaya bar tumpang tindih, agak transparan dan garis tepi putih
+  scale_fill_manual(values=c("Low"="#ff0800","Medium"="#f6d55c","High"="#76c7c0")) +
+  labs(title="Life Expectancy Distribution by HDI Category",x="Life Expectancy",y="Frequency",fill="HDI Category") +
+  theme_minimal()
+```
+
+Regions classified as having a "Low" HDI tend to exhibit the lowest life expectancy distribution, mostly concentrated between 55 and 65 years. This indicates that areas with lower levels of human development are generally associated with shorter lifespans. In contrast, regions with a "Medium" HDI display a higher range, typically between 60 and 70 years, with the peak distribution around 67–68 years. Areas in the "High" HDI category have the highest life expectancy distribution, with most values above 70 years and a peak near 72–73 years. A few even reach close to 80 years, reflecting significantly better health outcomes.
+
+Despite these clear distinctions, the distributions overlap to some extent. For instance, some areas in the "Medium" HDI category have life expectancies comparable to those in the "High" group, and vice versa. This suggests that while life expectancy is a key driver of HDI, other contributing factors also play a role in determining an area's overall human development level.
+
+This data highlights the need to invest in health services, sanitation, nutrition, and other factors that contribute to increased life expectancy, especially in areas that are still in the "Low" and "Medium" HDI categories. Improving the quality of life and health of the population will directly contribute to improving the overall HDI.
+
+Overall, these plots visually confirm the strong relationship between population health and the level of human development reflected by HDI, suggesting that progress in one dimension tends to go hand in hand with progress in the other.
+
+## Mapping HDI per Province in Indonesia
+
+This section requires verification of the province name.
+
+```{r}
+cat("Unique province names in the spatial data (geographic map):\n")
+print(unique(indo_map$NAME_1))
+cat("\nUnique province names in the tabular data:\n")
+print(unique(data$Provinsi))
+```
+
+This spatial visualization maps HDI categories across Indonesia, provides a clear picture of development disparities between provinces. The map uses the same coloring system as the previously defined HDI categories. 
+
+```{r}
+data_prov <- data %>% group_by(Provinsi) %>% summarise(IPM=mean(IPM)) %>% mutate(
+    IPM_Kategori=factor(case_when(IPM<60~"Low",IPM>=60 & IPM<70~"Medium",IPM>=70~"High"),
+                        levels=c("Low","Medium","High"),ordered=T))
+indo_merged <- left_join(indo_map, data_prov, by = c("NAME_1" = "Provinsi"))
+ggplot(indo_merged) +
+  geom_sf(aes(fill=IPM_Kategori),color="white",size=0.2) + # bikin peta dari data spasial
+  # serta atur warna dan ketebalan garis batas antarprovinsi
+  scale_fill_manual(values=c("Low"="#f28e8c","Medium"="#f6d55c","High"="#76c7c0")) +
+  labs(title="HDI Category by Province in Indonesia",fill="HDI Category") +
+  theme_minimal()
+```
+
+Most provinces in the western part of Indonesia, such as Java, Sumatra, and Kalimantan, are dominated by the "High" HDI category. This indicates that these regions, which are also the centers of economy and population, have achieved a high level of human development.
+
+Several provinces in central and eastern Indonesia, such as Nusa Tenggara, Sulawesi, and Maluku, are mostly in the "Medium" HDI category. This indicates that despite progress, these regions are still in the intermediate stage of human development and have the potential and need to continue to improve.
+
+Strikingly, Papua is the only region dominated by the "Low" HDI category. This confirms that Papua still faces the most significant development challenges compared to other provinces in Indonesia, requiring special attention and intervention to improve the quality of life of its population.
+
+This map visually strongly shows that western Indonesia is far more advanced in human development compared to the eastern part. The geographic disparity is a major challenge in efforts to realize inclusive and equitable development. This pattern also highlights the urgency of more focused and intensive policies to encourage development in areas that are still lagging behind especially in eastern Indonesia.
+
+## Summary and Recommendation
+
+Although Indonesia’s Human Development Index (HDI) shows an overall upward trend, this progress has not been evenly distributed across regions. Significant disparities are still exist especially in some eastern regions such as Papua, which still lag behind in access to education, health services, and decent living standards. This HDI gap highlights that development is not just about economic growth, but also ensuring that every citizen has a fair chance to achieve a better quality of life. Ignoring this disparity risks leaving millions of people behind on the journey towards national progress. 
+
+To close this gap and ensure equitable development for all Indonesians, here are some key recommendations and solutions: 
+
+Equitable Access: Ensure equal access to health services, education, and decent work in areas that are still lagging and underdeveloped. 
+
+Local Economic Support: Promote local economic growth through skills training, entrepreneurship development, and supportive infrastructure development. 
+
+Community Empowerment: Directly involve and empower communities in the planning and decision-making process related to development in their areas. 
+
+Data-Driven Strategy and Inter-Regional Collaboration: Leverage data-driven strategies to effectively target and address HDI gaps, and foster inter-regional collaboration to share best practices and resources.
+
+
+
